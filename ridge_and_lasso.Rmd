@@ -1,0 +1,100 @@
+---
+title: "ridge_and_lasso"
+output: html_document
+---
+Now we analyze the baseball dataset with regularization.  Regularization is a strategy for penalizing the Beta coefficients, such that we tend to shrink coefficients as we increase the regularization parameter, lambda.  We examine two kinds of regularization: ridge and lasso.  Ridge regression includes an penalty for Beta coefficients equal to *lambda x sum(beta[i]^2)* for i = 1 .... p.  Lasso regression is similar, but the penalty for Beta is *lambda x sum(beta[i])* for i = 1 .... p.  
+
+First, we reload the dataset and remove the missing values.
+
+```{r}
+library(ISLR)
+fix(Hitters)
+names(Hitters)
+nrow(Hitters)
+```
+```{r}
+Hitters=na.omit(Hitters)
+dim(Hitters)
+```
+
+
+Set the X matrix and the y response vector.
+
+```{r}
+x=model.matrix(Salary~., Hitters)[,-1]
+y=Hitters$Salary
+```
+
+Next, we use the glmnet() function to create our models.  We use the grid sequence to evaluate a range of lambda values from 10^10 to 10^-2.  The alpha parameter is set to 0 for ridge regression, or 1 for lasso regression.
+
+```{r}
+library(glmnet)
+grid=10^seq(10,-2,length=100)
+ridge.mod=glmnet(x,y,alpha=0,lambda=grid)
+```
+Associated with each value of lamda, there is a vector of Beta values.  In this case, we have a matrix of 100 lambda values x 20 Beta values (19 Beta values for features and one for the intercept).
+```{r}
+dim(coef(ridge.mod))
+```
+```{r}
+ridge.mod$lambda[50]
+coef(ridge.mod)[,50]
+```
+Above are the coefficients when lambda is equal to 11498.  We can check below the coefficients when lambda is equal to 705:
+```{r}
+ridge.mod$lambda[60]
+coef(ridge.mod)[,60]
+```
+
+Note that with a smaller value of lambda, the coefficients tended to increase.  We can compute the L2 norm for both of the above models for comparison as well:
+
+```{r}
+sqrt(sum(coef(ridge.mod)[-1,50]^2))
+
+sqrt(sum(coef(ridge.mod)[-1,60]^2))
+```
+Note the large increase in the L2 norm as we decreased lambda.
+
+```{r}
+1:nrow(x)
+nrow(x)/2
+```
+Now we divide the data into test and train data sets:
+```{r}
+set.seed(1)
+train=sample(1:nrow(x), nrow(x)/2)
+test=(-train)
+y.test=y[test]
+
+ridge.mod = glmnet(x[train,], y[train], alpha=0, lambda=grid, thresh=1e-12)
+ridge.pred = predict(ridge.mod, s=4, newx=x[test,])
+mean((ridge.pred-y.test)^2)
+```
+The above is the MSE using a lambda value of 4.  However, if we had chosen lambda = a very large number, we have roughly a model that only has an intercept (all other Beta values forced to 0).  In the case of intercept-only model, we have the MSE as:
+```{r}
+mean((mean(y[train])-y.test)^2)
+```
+If we choose lamda=1e10, we get a similar result:
+```{r}
+ridge.pred = predict(ridge.mod, s=1e10, newx=x[test,])
+mean((ridge.pred-y.test)^2)
+```
+In general, it is better for us to use cross-validation to choose the tuning parameter lambda.  We can do this using the built in function cv.glmnet().  By default, it performs a 10-fold cross-validation, but the folds can be set using the argument *folds*.
+```{r}
+set.seed(1)
+cv.out=cv.glmnet(x[train,], y[train], alpha=0)
+plot(cv.out)
+bestlambda=cv.out$lambda.min
+bestlambda
+```
+We can find the *test MSE* associated with bestlambda=212.  
+```{r}
+ridge.pred=predict(ridge.mod, s=bestlambda, newx=x[test,])
+mean((ridge.pred-y.test)^2)
+```
+Finally, we refit on the full data set using lambda=bestlambda=212:
+```{r}
+final.model = glmnet(x,y,alpha=0)
+predict(final.model, type="coefficients", s=bestlambda)
+```
+
