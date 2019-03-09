@@ -69,6 +69,7 @@ y.test=y[test]
 ridge.mod = glmnet(x[train,], y[train], alpha=0, lambda=grid, thresh=1e-12)
 ridge.pred = predict(ridge.mod, s=4, newx=x[test,])
 mean((ridge.pred-y.test)^2)
+plot(ridge.mod)
 ```
 The above is the MSE using a lambda value of 4.  However, if we had chosen lambda = a very large number, we have roughly a model that only has an intercept (all other Beta values forced to 0).  In the case of intercept-only model, we have the MSE as:
 ```{r}
@@ -97,4 +98,26 @@ Finally, we refit on the full data set using lambda=bestlambda=212:
 final.model = glmnet(x,y,alpha=0)
 predict(final.model, type="coefficients", s=bestlambda)
 ```
+Next, we check lasso regression:
+```{r}
+lasso.model=glmnet(x[train,], y[train], alpha=1, lambda=grid)
+plot(lasso.model)
+```
+```{r}
+set.seed(1)
+cv.out = cv.glmnet(x[train,], y[train], alpha=1)
+plot(cv.out)
+cv.out$lambda
+bestlam=cv.out$lambda.min
+lasso.pred=predict(lasso.model, s=bestlam, newx=x[test,])
+mean((lasso.pred-y.test)^2)
+```
+We can build lasso regression model using all the data, and then check the coefficients using lambda = bestlam.
 
+
+```{r}
+final_lasso = glmnet(x,y, alpha=1, lambda=grid)
+lasso.coef=predict(final_lasso, type="coefficients", s=bestlam)
+lasso.coef
+```
+We can see that the lasso model only includes 7 predictors + the intercept.  All the other predictors have zero coefficients.  Thus, lasso produces a slimmer and more easily interpretible model in this case.
